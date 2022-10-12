@@ -1,4 +1,5 @@
 # -*-coding:utf-8 -*-
+import base64
 import configparser
 import hashlib
 import random
@@ -7,24 +8,40 @@ from tkinter import *
 from tkinter import messagebox
 
 import win32gui
-
-from DM import getDM
+from PyGameAutoFree import *
 from init import *
 from item import items
-from script.enemys import enemyList
+from enemys import enemyList
 from tpms import tpms
 
 cf = configparser.ConfigParser()
 cf.read("./data.ini")
-# 框架初始化
-dm = getDM()
+param1 = cf.get("password", "param1")
+param2 = cf.get("password", "param2")
+param1 = base64.b64decode(param1)
+param2 = base64.b64decode(param2)
+dm = PyGameAuto.gl_init(param1, param2)
+path = PyGameAuto.get_path(__file__)
 equipmentToBePickedUp = ["五色玉佩", "墨玉玉佩", "琥珀护身符", "红翡翠护身符", "蓝水晶戒指", "钻石戒指"]
+# 句柄
+hwnd = win32gui.FindWindow(None,
+                           u"剑网贰单机版(交流QQ群:985964773)-此客户端与服务端免费分享 (公益怀旧群服专用客户端)")
+while hwnd <= 0:
+    print('未发现游a戏窗口，请打开')
+hwnd = win32gui.FindWindow(None,
+                           u"剑网贰单机版(交流QQ群:985964773)-此客户端与服务端免费分享 (公益怀旧群服专用客户端)")
+time.sleep(1)
+dm_ret = dm.BindWindowEx(hwnd, "dx2",
+                         "dx.mouse.position.lock.api|dx.mouse.position.lock.message|dx.mouse.focus.input.api|dx.mouse.focus.input.message|dx.mouse.clip.lock.api|dx.mouse.input.lock.api|dx.mouse.state.api|dx.mouse.state.message|dx.mouse.api|dx.mouse.cursor|dx.mouse.raw.input|dx.mouse.input.lock.api2|dx.mouse.input.lock.api3",
+                         "windows", "", 0)
+dm.MoveWindow(hwnd, 0, 0)
+dm.SetWindowSize(hwnd, 1030, 738)
 dm.SetDict(0, "new.txt")
-enemyNames = ["异族箭手", "异族武士", "精英异族箭手", "精英异族武士"]
+enemyNames = ["异族箭手", "异族武士", "精英异族箭手", "精英异族武士", "辽刀兵", "辽枪兵", "精英辽刀兵", "精英辽枪兵"]
 enemyX, enemyY, enemyT = None, None, None
 hero = {
-    'x': 510,
-    'y': 401
+    'x': 517,
+    'y': 398
 }
 
 
@@ -54,25 +71,30 @@ def plusState(key):
 def findTheNearestMonster():
     for i in enemyNames:
         s = enemyList[i]
-        h, x, y = dm.FindStr(s[0], s[1], s[2], s[3], s[4], s[5], s[6])
+        h, x, y = dm.FindStrFast(s[0], s[1], s[2], s[3], s[4], s[5], s[6])
+        h, x, y = toInt(h, x, y)
         if x >= 0 and y >= 0:
             return True, x, y, s[4]
     return False, -1, -1, None
 
 
+def toInt(h1, x1, y1):
+    return int(h1), int(x1), int(y1)
+
+
 def findTheMonsterOnTheScreen():
     for i in enemyNames:
         s = enemyList[i]
-        h, x, y = dm.FindStr(0, 0, 1018, 670, s[4], s[5], s[6])
+        h, x, y = dm.FindStrFast(0, 0, 1018, 670, s[4], s[5], s[6])
+        h, x, y = toInt(h, x, y)
         if x >= 0 and y >= 0:
             return True, x, y, s[4]
     return False, -1, -1, None
 
 
 def findTheMonsterNearTheSmallMap():
-    pic = tpms["怪小地图"]["怪小地图"]
-    result = dm.FindPic(pic[0], pic[1], pic[2], pic[3], pic[4], pic[5], pic[6])
-    h, x, y = result
+    pic = tpms["怪小地图"]
+    h, x, y = dm.FindPic(pic[0], pic[1], pic[2], pic[3], pic[4], pic[5], pic[6])
     if x >= 0 and y >= 0:
         print("找到了：" + pic[4] + "地址：（" + str(x) + "," + str(y) + "）")
         return True, x, y, pic[4]
@@ -100,9 +122,9 @@ def walk(di, step, t):
 
 
 def rambleAbout():
-    dis = ['L', 'R', 'U', 'D']
+    dis = ['L', 'R', 'L', 'R', 'L', 'R', 'L', 'R', 'U', 'D']
     # 随机一个方向和step
-    dindex = random.randint(0, 3)
+    dindex = random.randint(0, 9)
     print("dindex=" + str(dindex))
     step = random.randint(1, 3)
     times = random.randint(1, 8)
@@ -144,33 +166,79 @@ def strikeAMonster(ex, ey):
             numberClicks[key] += 1
     else:
         numberClicks[key] = 1
-    dm.MoveTo(ex + 50, ey + 70)
+    dm.MoveTo(ex + 32, ey + 66)
     dm.LeftClick()
-    print("已点击%s,%s", str(ex + 50), str(ey + 70))
+    print("已点击%s,%s", str(ex + 32), str(ey + 66))
 
 
 def checkStatus():
-    pass
+    isFull = False
+    # 查看背包是否满了
+    pic = tpms["背包-空格子"]
+    h, x, y = dm.FindPic(pic[0], pic[1], pic[2], pic[3], pic[4], pic[5], pic[6])
+    h, x, y = toInt(h, x, y)
+    if x < 0 and y < 0:
+        print("格子满了")
+        isFull = True
+    s = dm.Ocr(784, 604, 871, 630, "bdbebd-000000", 0.9)
+    slist = str.split(s, "/")
+    负重比 = int(slist[0]) / int(slist[1])
+    print(负重比)
+    if 负重比 > 0.9:
+        isFull = True
+        print("负重满了" + str(负重比))
+    return isFull
 
 
-def bindWindow():
-    # 句柄
-    hwnd = win32gui.FindWindow(None,
-                               u"剑网贰单机版(交流QQ群:985964773)-此客户端与服务端免费分享 (公益怀旧群服专用客户端)")
-    if hwnd <= 0:
-        return False
-    # ret = dm.BindWindow(hwnd, "dx", "dx", "dx", 1)
-    ret = dm.BindWindow(hwnd, "dx", "windows3", "windows", 101)
-    return ret == 1
+def cleanBag():
+    # 逐个查看没见装备的属性存入list中
+    equipmentInfomations = []
+    s = items["道具背包"]
+    h, x, y = dm.FindStrFast(s[0], s[1], s[2], s[3], s[4], s[5], s[6])
+    h, x, y = toInt(h, x, y)
+    if x < 0 or y < 0:
+        dm.MoveTo(hero.get('x'), hero.get('y'))
+        dm.LeftClick()
+        dm.KeyPress(115)  # F4
+        time.sleep(0.5)
+    for i in range(5):
+        for j in range(6):
+            PointX, PointY = 788 + 21 + 42 * i, 347 + 21 + 42 * j
+            dm.MoveTo(PointX, PointY)
+            time.sleep(0.5)
+            recognize = dm.Ocr(PointX - 762 + 573, 550, PointX - 762 + 732, 736,
+                               "4a8eff-000000|ffb666-000000|ef4dbd-000000|5af363-000000|ffffff-000000|c6c3c6-000000",
+                               0.9)
+            print("坐标:" + str(PointX) + "," + str(PointY) + "---" + recognize)
+            equipmentInfomations["eq" + str(i) + str(j)] = recognize
+    s = items["扩展背包"]
+    h, x, y = dm.FindStrFast(s[0], s[1], s[2], s[3], s[4], s[5], s[6])
+    h, x, y = toInt(h, x, y)
+    if x < 0 or y < 0:
+        pic = tpms["扩展背包按钮"]
+        isFind = False
+        while not isFind:
+            h, x, y = dm.FindPic(pic[0], pic[1], pic[2], pic[3], pic[4], pic[5], pic[6])
+            h, x, y = toInt(h, x, y)
+            if x >= 0 and y >= 0:
+                dm.MoveTo(x, y)
+                dm.LeftClick()
+                isFind = True
+    for i in range(5):
+        for j in range(6):
+            PointX, PointY = 573 + 21 + 42 * i, 350 + 21 + 42 * j
+            dm.MoveTo(PointX, PointY)
+            time.sleep(0.5)
+            recognize = dm.Ocr(PointX - 762 + 573, 550, PointX - 762 + 732, 736,
+                               "4a8eff-000000|ffb666-000000|ef4dbd-000000|5af363-000000|ffffff-000000|c6c3c6-000000",
+                               0.9)
+            print("坐标:" + str(PointX) + "," + str(PointY) + "---" + recognize)
+            equipmentInfomations["eq" + str(i) + str(j)] = recognize
 
 
 def doTask():
-    isBind = bindWindow()
-    if not isBind:
-        messagebox.showerror(title="error", message="未发现游戏，请打开游戏窗口再试")
-        return
     time.sleep(2)
-    messagebox.showinfo(title="info", message="开始挂机")
+    print("辅助开始")
     stat = "初始化"
     x, y, etype = None, None, None
     while True:
@@ -197,15 +265,24 @@ def doTask():
             stat = "checkStatus"
         elif stat.__eq__("checkStatus"):
             # checkStatus
-            checkStatus()
+            # isBagFull = checkStatus()
+            isBagFull = False
             print("当前state：" + stat)
+            if isBagFull:
+                stat = "cleanBag"
+            else:
+                stat = "找怪"
+        elif stat.__eq__("cleanBag"):
+            print("当前state：" + stat)
+            cleanBag()
             stat = "找怪"
 
 
 def pickingUpEquipment():
     for i in equipmentToBePickedUp:
         s = items[i]
-        h, x, y = dm.FindStr(s[0], s[1], s[2], s[3], s[4], s[5], s[6])
+        h, x, y = dm.FindStrFast(s[0], s[1], s[2], s[3], s[4], s[5], s[6])
+        h, x, y = toInt(h, x, y)
         if x >= 0 and y >= 0:
             dm.MoveTo(x, y)
             print("识别到：" + s[4] + ",坐标是:" + str(x) + "," + str(y))
@@ -215,21 +292,19 @@ def pickingUpEquipment():
 
 
 def openQualification():
-    isBind = bindWindow()
-    if not isBind:
-        messagebox.showerror(title="error", message="未发现游戏，请打开游戏窗口再试")
-        return
     unidentified_x, unidentified_y = findUnqualifiedEquipment()
     if unidentified_x >= 0 and unidentified_y >= 0:
         s = items["道具背包"]
-        h, x, y = dm.FindStr(s[0], s[1], s[2], s[3], s[4], s[5], s[6])
+        h, x, y = dm.FindStrFast(s[0], s[1], s[2], s[3], s[4], s[5], s[6])
+        h, x, y = toInt(h, x, y)
         if x < 0 or y < 0:
             dm.MoveTo(hero.get('x'), hero.get('y'))
             dm.LeftClick()
             dm.KeyPress(115)  # F4
             time.sleep(0.5)
         s = items["扩展背包"]
-        h, x, y = dm.FindStr(s[0], s[1], s[2], s[3], s[4], s[5], s[6])
+        h, x, y = dm.FindStrFast(s[0], s[1], s[2], s[3], s[4], s[5], s[6])
+        h, x, y = toInt(h, x, y)
         if x < 0 or y < 0:
             pic = tpms["扩展背包按钮"]
             isFind = False
@@ -243,12 +318,13 @@ def openQualification():
         isFind = False
         while not isFind:
             h, x, y = dm.FindPic(pic[0], pic[1], pic[2], pic[3], pic[4], pic[5], pic[6])
+            h, x, y = toInt(h, x, y)
             if x >= 0 and y >= 0:
-                dm.MoveTo(x + 22, y + 22)
+                dm.MoveTo(x, y)
                 time.sleep(1)
                 dm.RightClick()
                 time.sleep(1)
-                dm.MoveTo(468, 356)
+                dm.MoveTo(315, 248)
                 dm.MoveTo(unidentified_x, unidentified_y)
                 dm.LeftClick()
                 isFind = True
@@ -257,7 +333,8 @@ def openQualification():
 
 
 def identifyEquipmentAttributes(x):
-    recognize = dm.Ocr(x - 660 + 468, 511, x - 589 + 632, 735,
+    # 573,550,732,736
+    recognize = dm.Ocr(x - 762 + 573, 550, x - 762 + 732, 736,
                        "4a8eff-000000|ffb666-000000|ef4dbd-000000|5af363-000000|ffffff-000000|c6c3c6-000000", 0.9)
     print("识别的文字" + recognize)
 
@@ -266,46 +343,53 @@ def findUnqualifiedEquipment():
     unidentified_x, unidentified_y = -1, -1
     # 815,367,1017,613,宽高(202,246)
     s = items["道具背包"]
-    h, x, y = dm.FindStr(s[0], s[1], s[2], s[3], s[4], s[5], s[6])
+    h, x, y = dm.FindStrFast(s[0], s[1], s[2], s[3], s[4], s[5], s[6])
+    h, x, y = toInt(h, x, y)
     if x < 0 or y < 0:
+        dm.MoveTo(hero.get('x'), hero.get('y'))
+        dm.LeftClick()
         dm.KeyPress(115)  # F4
         time.sleep(0.5)
     for i in range(5):
         for j in range(6):
-            PointX, PointY = 815 + 22 + 40 * i, 367 + 22 + 40 * j
+            PointX, PointY = 788 + 21 + 42 * i, 347 + 21 + 42 * j
             dm.MoveTo(PointX, PointY)
             s = items["未鉴定"]
-            h, x, y = dm.FindStr(s[0], s[1], s[2], s[3], s[4], s[5], s[6])
+            h, x, y = dm.FindStrFast(s[0], s[1], s[2], s[3], s[4], s[5], s[6])
+            h, x, y = toInt(h, x, y)
             if x >= 0 and y >= 0:
                 if j > 0:
-                    unidentified_x, unidentified_y = 815 + 22 + 40 * i, 367 + 22 + 40 * (j - 1)
+                    unidentified_x, unidentified_y = 788 + 21 + 42 * i, 367 + 347 + 21 + 42 * (j - 1)
                 else:
-                    unidentified_x, unidentified_y = 815 + 22 + 40 * (i - 1), 367 + 22 + 40 * 5
+                    unidentified_x, unidentified_y = 788 + 21 + 42 * (i - 1), 367 + 347 + 21 + 40 * 5
                 print("识别到：" + s[4] + ",坐标是:" + str(unidentified_x) + "," + str(unidentified_y))
                 return unidentified_x, unidentified_y
             time.sleep(0.05)
     s = items["扩展背包"]
-    h, x, y = dm.FindStr(s[0], s[1], s[2], s[3], s[4], s[5], s[6])
+    h, x, y = dm.FindStrFast(s[0], s[1], s[2], s[3], s[4], s[5], s[6])
+    h, x, y = toInt(h, x, y)
     if x < 0 or y < 0:
-        pic = tpms["扩展背包按钮"]["扩展背包按钮"]
+        pic = tpms["扩展背包按钮"]
         isFind = False
         while not isFind:
             h, x, y = dm.FindPic(pic[0], pic[1], pic[2], pic[3], pic[4], pic[5], pic[6])
+            h, x, y = toInt(h, x, y)
             if x >= 0 and y >= 0:
                 dm.MoveTo(x, y)
                 dm.LeftClick()
                 isFind = True
     for i in range(5):
         for j in range(6):
-            PointX, PointY = 598 + 22 + 40 * i, 367 + 22 + 40 * j
+            PointX, PointY = 573 + 21 + 42 * i, 350 + 21 + 42 * j
             dm.MoveTo(PointX, PointY)
             s = items["未鉴定"]
-            h, x, y = dm.FindStr(s[0], s[1], s[2], s[3], s[4], s[5], s[6])
+            h, x, y = dm.FindStrFast(s[0], s[1], s[2], s[3], s[4], s[5], s[6])
+            h, x, y = toInt(h, x, y)
             if x >= 0 and y >= 0:
                 if j > 0:
-                    unidentified_x, unidentified_y = 598 + 22 + 40 * i, 367 + 22 + 40 * (j - 1)
+                    unidentified_x, unidentified_y = 573 + 21 + 42 * i, 350 + 21 + 42 * (j - 1)
                 else:
-                    unidentified_x, unidentified_y = 598 + 22 + 40 * (i - 1), 367 + 22 + 40 * 5
+                    unidentified_x, unidentified_y = 573 + 21 + 42 * (i - 1), 350 + 22 + 42 * 5
                 print("识别到：" + s[4] + ",坐标是:" + str(unidentified_x) + "," + str(unidentified_y))
                 return unidentified_x, unidentified_y
             time.sleep(0.05)
@@ -374,12 +458,10 @@ def loginMenu():
                 if checkName.__eq__("鉴定背包"):
                     if checkValue == 1:
                         messagebox.showinfo("正在启动鉴定")
-                        time.sleep(5)
                         openQualification()
                 if checkName.__eq__("日常副本"):
                     if checkValue == 1:
                         messagebox.showinfo("正在启动副本")
-                        time.sleep(5)
                         doTask()
 
         center_window(optionsMenu, 400, 300)
@@ -441,6 +523,48 @@ def loginMenu():
     login.mainloop()
 
 
+def end():
+    dm.UnBindWindow()
+
+
+def 切换成比丘剑法():
+    # 是不是比丘剑法
+    pic = tpms["比丘剑法"]
+    h, x, y = dm.FindPic(pic[0], pic[1], pic[2], pic[3], pic[4], pic[5], pic[6])
+    if x >= 0 and y >= 0:
+        pass
+    else:
+        pic = tpms["剑普通攻击"]
+        h, x, y = dm.FindPic(pic[0], pic[1], pic[2], pic[3], pic[4], pic[5], pic[6])
+        if x >= 0 and y >= 0:
+            dm.MoveTo(x, y)
+            dm.LeftClick()
+            time.sleep(1)
+            pic = tpms["比丘剑法1"]
+            h, x, y = dm.FindPic(pic[0], pic[1], pic[2], pic[3], pic[4], pic[5], pic[6])
+            if x >= 0 and y >= 0:
+                dm.MoveTo(x, y)
+                dm.LeftClick()
+
+
+def 进入草原():
+    # 打开背包
+    s = items["道具背包"]
+    h, x, y = dm.FindStrFast(s[0], s[1], s[2], s[3], s[4], s[5], s[6])
+    h, x, y = toInt(h, x, y)
+    if x < 0 or y < 0:
+        pic = tpms["状态栏下的背包按钮"]
+        h, x, y = dm.FindPic(pic[0], pic[1], pic[2], pic[3], pic[4], pic[5], pic[6])
+        if x >= 0 and y >= 0:
+            dm.MoveTo(x, y)
+            dm.LeftClick()
+
+
+
 if __name__ == '__main__':
-    print("开始")
-    loginMenu()
+    # loginMenu()
+    # doTask()
+    # openQualification()
+    # checkStatus()
+    进入草原()
+    end()
